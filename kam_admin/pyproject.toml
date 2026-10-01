@@ -1,0 +1,22 @@
+[project]
+name = "kam-admin"
+version = "0.1.0"
+description = "KAM Copilot —— kam_admin 管理后台（Flask，员工/客户/订单/标签/看板/AI采纳率）"
+requires-python = "==3.12.*"
+dependencies = [
+    "flask==3.1.2",
+    "python-dotenv==1.2.1",
+    "kam-client",
+]
+
+[tool.uv.sources]
+kam-client = { path = "../kam_client", editable = true }
+
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

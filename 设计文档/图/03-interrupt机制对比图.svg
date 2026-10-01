@@ -1,0 +1,143 @@
+<svg viewBox="0 0 960 760" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>主图与画像子图 Send并行interrupt机制 — 旧设计框架边界 vs 新设计修复方案</title>
+<desc>旧设计：一个子图thread内多字段并行Send+interrupt，resume一个字段后动态Send产生的新interrupt丢失，是LangGraph在此场景下的真实框架边界。新设计：每个字段各自独立thread_id跑一次子图，从根上避免多个pending interrupt共存。</desc>
+
+<style>
+  .title { font: 700 16px "Segoe UI", sans-serif; fill: #0f172a; }
+  .panelTitle { font: 700 13px "Segoe UI", sans-serif; }
+  .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 8; }
+  .field { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.2; rx: 6; }
+  .fieldBad { fill: #fef2f2; stroke: #ef4444; stroke-width: 1.5; rx: 6; }
+  .fieldOk { fill: #f0fdf4; stroke: #22c55e; stroke-width: 1.5; rx: 6; }
+  .label { font: 400 11px "Segoe UI", sans-serif; fill: #475569; }
+  .small { font: 400 10px "Segoe UI", sans-serif; fill: #64748b; }
+  .arrow { stroke: #94a3b8; stroke-width: 1.3; fill: none; }
+  .arrowBad { stroke: #ef4444; stroke-width: 1.5; fill: none; stroke-dasharray: 3 2; }
+</style>
+
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+  </marker>
+  <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/>
+  </marker>
+</defs>
+
+<text x="30" y="34" class="title">画像确认机制：旧设计的框架边界 → 新设计怎么绕开</text>
+
+<!-- 左侧：旧设计 -->
+<rect x="20" y="60" width="440" height="500" fill="#fef2f2" stroke="#fecaca" stroke-width="1.5" rx="10"/>
+<text x="40" y="86" class="panelTitle" fill="#dc2626">旧设计：一个子图thread处理全部字段（已废弃）</text>
+
+<rect x="40" y="105" width="400" height="40" class="box"/>
+<text x="240" y="129" text-anchor="middle" class="label">主图：generate_all_drafts（1次LLM调用生成全部草稿）</text>
+
+<line x1="240" y1="145" x2="240" y2="168" class="arrow" marker-end="url(#a)"/>
+<text x="250" y="162" class="small">Send 扇出</text>
+
+<rect x="40" y="170" width="400" height="30" class="box"/>
+<text x="240" y="190" text-anchor="middle" class="label">画像子图（同一个 thread_id，内部并行3个字段）</text>
+
+<!-- 三个并行字段 -->
+<rect x="55" y="215" width="115" height="50" class="field"/>
+<text x="112" y="235" text-anchor="middle" class="label">project_stage</text>
+<text x="112" y="250" text-anchor="middle" class="small">interrupt() 挂起</text>
+
+<rect x="185" y="215" width="115" height="50" class="fieldBad"/>
+<text x="242" y="235" text-anchor="middle" class="label" fill="#dc2626">price_sensitivity</text>
+<text x="242" y="250" text-anchor="middle" class="small" fill="#dc2626">resume→recreate</text>
+
+<rect x="315" y="215" width="115" height="50" class="field"/>
+<text x="372" y="235" text-anchor="middle" class="label">tech_goal</text>
+<text x="372" y="250" text-anchor="middle" class="small">interrupt() 挂起</text>
+
+<line x1="240" y1="200" x2="112" y2="212" class="arrow"/>
+<line x1="240" y1="200" x2="242" y2="212" class="arrow"/>
+<line x1="240" y1="200" x2="372" y2="212" class="arrow"/>
+
+<!-- resume后动态send产生新interrupt -->
+<line x1="242" y1="265" x2="242" y2="300" class="arrowBad" marker-end="url(#ab)"/>
+<text x="255" y="285" class="small" fill="#dc2626">动态Send生成新草稿</text>
+
+<rect x="185" y="302" width="115" height="46" class="fieldBad"/>
+<text x="242" y="320" text-anchor="middle" class="label" fill="#dc2626">新 interrupt</text>
+<text x="242" y="335" text-anchor="middle" class="small" fill="#dc2626">✕ 不出现在返回值</text>
+
+<!-- 问题说明框 -->
+<rect x="40" y="365" width="400" height="175" fill="#ffffff" stroke="#fca5a5" stroke-width="1" rx="8"/>
+<text x="56" y="388" class="label" font-weight="700" fill="#dc2626">真实框架边界（已验证）</text>
+<text x="56" y="408" class="small">project_stage、tech_goal 仍是 pending interrupt 状态时，</text>
+<text x="56" y="424" class="small">恢复 price_sensitivity 一个字段并触发 recreate，</text>
+<text x="56" y="440" class="small">其动态 Send 产生的新 interrupt 不会正确出现在</text>
+<text x="56" y="456" class="small">当次 invoke() 的返回值里。</text>
+<text x="56" y="478" class="small" fill="#64748b">最小复现脚本 repro_parallel_dynamic_interrupt.py 组D坐实，</text>
+<text x="56" y="494" class="small" fill="#64748b">手动invoke子图 / 官方挂载子图 两种写法都会踩，</text>
+<text x="56" y="510" class="small" fill="#64748b">根因是"多个pending interrupt共存 + 动态Send再入"</text>
+<text x="56" y="526" class="small" fill="#64748b">这个具体场景组合，不是写法本身的问题。</text>
+
+<!-- 右侧：新设计 -->
+<rect x="500" y="60" width="440" height="500" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5" rx="10"/>
+<text x="520" y="86" class="panelTitle" fill="#16a34a">新设计：每个字段独立 thread_id（已采用）</text>
+
+<rect x="520" y="105" width="400" height="40" class="box"/>
+<text x="720" y="129" text-anchor="middle" class="label">主图：generate_all_field_drafts（生成全部草稿，逻辑不变）</text>
+
+<line x1="720" y1="145" x2="720" y2="168" class="arrow" marker-end="url(#a)"/>
+<text x="726" y="162" class="small">对每个字段各自 invoke</text>
+
+<!-- 三个独立子图thread -->
+<rect x="520" y="180" width="120" height="80" class="fieldOk"/>
+<text x="580" y="202" text-anchor="middle" class="label" font-weight="600">子图 thread</text>
+<text x="580" y="218" text-anchor="middle" class="small">thr_xxx:project_stage</text>
+<text x="580" y="236" text-anchor="middle" class="small">只处理1个字段</text>
+<text x="580" y="252" text-anchor="middle" class="small">只有1个interrupt</text>
+
+<rect x="660" y="180" width="120" height="80" class="fieldOk"/>
+<text x="720" y="202" text-anchor="middle" class="label" font-weight="600">子图 thread</text>
+<text x="720" y="218" text-anchor="middle" class="small">thr_xxx:price_sen..</text>
+<text x="720" y="236" text-anchor="middle" class="small">只处理1个字段</text>
+<text x="720" y="252" text-anchor="middle" class="small">只有1个interrupt</text>
+
+<rect x="800" y="180" width="120" height="80" class="fieldOk"/>
+<text x="860" y="202" text-anchor="middle" class="label" font-weight="600">子图 thread</text>
+<text x="860" y="218" text-anchor="middle" class="small">thr_xxx:weak_sub..</text>
+<text x="860" y="236" text-anchor="middle" class="small">只处理1个字段</text>
+<text x="860" y="252" text-anchor="middle" class="small">只有1个interrupt</text>
+
+<line x1="720" y1="145" x2="580" y2="178" class="arrow"/>
+<line x1="720" y1="145" x2="720" y2="178" class="arrow"/>
+<line x1="720" y1="145" x2="860" y2="178" class="arrow"/>
+
+<!-- recreate 在独立thread里安全 -->
+<line x1="720" y1="260" x2="720" y2="296" class="arrow" marker-end="url(#a)"/>
+<text x="732" y="282" class="small" fill="#16a34a">recreate → 再interrupt</text>
+
+<rect x="660" y="298" width="120" height="46" class="fieldOk"/>
+<text x="720" y="316" text-anchor="middle" class="label" fill="#16a34a">新 interrupt</text>
+<text x="720" y="332" text-anchor="middle" class="small" fill="#16a34a">✓ 正确出现在返回值</text>
+
+<!-- 修复说明框 -->
+<rect x="520" y="365" width="400" height="175" fill="#ffffff" stroke="#86efac" stroke-width="1" rx="8"/>
+<text x="536" y="388" class="label" font-weight="700" fill="#16a34a">修复方案</text>
+<text x="536" y="408" class="small">generate_all_drafts 上移到主图 kam_node.py，</text>
+<text x="536" y="424" class="small">改名 generate_all_field_drafts，逻辑不变。</text>
+<text x="536" y="440" class="small">画像子图从"一次处理全部字段"改成</text>
+<text x="536" y="456" class="small">"只处理1个字段"，命名规则</text>
+<text x="536" y="472" class="small" font-family="monospace">f"{主thread_id}:{field_name}"</text>
+<text x="536" y="494" class="small" fill="#64748b">每个子图执行实例从头到尾只有1个字段、</text>
+<text x="536" y="510" class="small" fill="#64748b">1个interrupt，永远不会触发"多pending</text>
+<text x="536" y="526" class="small" fill="#64748b">interrupt共存"这个前提条件，问题从根上绕开。</text>
+
+<!-- 底部代价说明 -->
+<rect x="20" y="575" width="920" height="60" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" rx="8"/>
+<text x="40" y="598" class="label" font-weight="700">代价</text>
+<text x="40" y="616" class="small">/tasks/generate_profile 返回的 thread_id 变成"主任务标识"；/tasks/confirm 的 thread_id 语义变成"字段自己的子thread_id"（从SSE事件的 thread_id 字段拿），不再是主任务thread_id</text>
+
+<!-- 排查过程时间线 -->
+<rect x="20" y="650" width="920" height="90" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" rx="8"/>
+<text x="40" y="674" class="label" font-weight="700">排查过程（三轮假设排除，面试可讲）</text>
+<text x="40" y="694" class="small">① 疑"手动invoke vs 官方挂载子图" → 两组复现都PASS，排除　　② 疑"包装节点窄返回丢失__interrupt__" → 复现仍PASS，排除</text>
+<text x="40" y="712" class="small">③ 改造成"多字段并行+只resume一个"场景 → 组D复现FAIL，坐实根因　　　　完整过程见 最小复现脚本</text>
+
+</svg>

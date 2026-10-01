@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 恒创智能装备管理台</title>
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/all.min.css') }}" rel="stylesheet">
+    <style>
+        body {
+            /* 替换原紫蓝AI渐变：哑光浅灰+细微杂色质感，办公系统经典底色 */
+            background-color: #f2f5f9;
+            background-image: radial-gradient(#e6ebf1 0.5px, transparent 0.5px);
+            background-size: 20px 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(30, 40, 60, 0.08);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .login-header h2 {
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        .login-header p {
+            color: #718096;
+            margin: 0;
+        }
+        .form-control {
+            border-radius: 10px;
+            padding: 12px 15px;
+            border: 1px solid #dde2eb;
+        }
+        /* 按钮去掉花哨渐变，改用稳重深灰蓝纯色 */
+        .btn-login {
+            background-color: #3b5983;
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-weight: 600;
+            width: 100%;
+            color: #ffffff;
+        }
+        .btn-login:hover {
+            background-color: #314c70;
+            color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(59, 89, 131, 0.25);
+        }
+        .alert {
+            border-radius: 10px;
+        }
+        .input-group-text {
+            background-color: #f7f9fc;
+            border: 1px solid #dde2eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-header">
+            <i class="fas fa-chart-line fa-3x mb-3" style="color:#3b5983;"></i>
+            <h2>恒创智能装备管理台</h2>
+            <p>请登录您的账户</p>
+        </div>
+
+        {% if error %}
+            <div class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-triangle"></i> {{ error }}
+            </div>
+        {% endif %}
+
+        <form method="POST">
+            <div class="mb-3">
+                <label for="user_id" class="form-label">用户ID</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                    <input type="text" class="form-control" id="user_id" name="user_id" required>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="password" class="form-label">密码</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-login">
+                <i class="fas fa-sign-in-alt"></i> 登录
+            </button>
+        </form>
+    </div>
+</body>
+</html>

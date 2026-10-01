@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>KAM Copilot 侧边栏 · 登录</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="login-body">
+  <div class="login-box">
+    <div class="login-brand"><span class="brand-mark">AI</span></div>
+    <h1>恒创智能装备销售助手</h1>
+    <p class="login-subtitle">登录后开始生成客户洞察与跟进建议</p>
+    <form id="login-form">
+      <label>顾问ID<input type="text" id="user_id" required autocomplete="username" /></label>
+      <label>密码<input type="password" id="password" required autocomplete="current-password" /></label>
+      <button type="submit">登录</button>
+      <p id="login-error" class="error-text"></p>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const user_id = document.getElementById("user_id").value.trim();
+      const password = document.getElementById("password").value;
+      const errorEl = document.getElementById("login-error");
+      errorEl.textContent = "";
+
+      try {
+        const resp = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id, password }),
+        });
+        if (resp.redirected) {
+          window.location.href = resp.url;
+          return;
+        }
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          errorEl.textContent = body.detail || "登录失败";
+          return;
+        }
+        window.location.href = "/";
+      } catch (err) {
+        errorEl.textContent = `连接失败：${err}`;
+      }
+    });
+  </script>
+</body>
+</html>

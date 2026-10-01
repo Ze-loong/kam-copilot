@@ -1,0 +1,34 @@
+# ===== 过程文档（含项目真实沿革，只留本地，不进公开仓库）=====
+内部文档/
+协作记录/
+任务清单.md
+实战记录.md
+AGENTS.md
+_to_delete/
+
+# ===== 虚拟环境（各组件独立 uv venv）=====
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ===== 环境变量（真实密钥，只保留 .env.example）=====
+.env
+.env.*
+!.env.example
+
+# ===== IDE =====
+.idea/
+.vscode/
+
+# ===== 日志 / 临时 =====
+*.log
+*.bak
+
+# ===== 打包产物 =====
+*.egg-info/
+dist/
+build/
+node_modules/

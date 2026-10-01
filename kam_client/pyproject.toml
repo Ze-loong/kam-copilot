@@ -1,0 +1,25 @@
+[project]
+name = "kam-client"
+version = "0.1.0"
+description = "KAM Copilot —— kam_admin 专用的 Store API 客户端包（仓储模式/门面模式封装）"
+requires-python = "==3.12.*"
+dependencies = [
+    "requests>=2.32.5",
+    "python-dotenv>=1.2.1",
+]
+
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# ：显式声明只打包 store_client（kam_admin_app.py 实际在用的一期
+# 共享包）。此前这里短暂加过第二个包 src/kam_client——当时AI没意识到
+# kam_admin已有实现、误建了一套平行版本，那套平行实现已按用户决定
+# （保留一期kam_admin_app.py为准）整体退役删除，这里的packages配置同步
+# 改回只留一个，避免以后有人照着旧配置去找一个已经不存在的目录。
+packages = ["store_client"]

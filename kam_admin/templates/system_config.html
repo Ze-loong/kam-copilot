@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}系统配置 - 恒创智能装备管理台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-sliders-h"></i> 系统配置
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">F17 跨模块综合推理 · 全局开关</h6>
+                <p class="text-muted">
+                    关闭后，所有顾问侧边栏发起的"跨模块综合推理"请求会自动降级为 F16 知识库问答兜底，
+                    不再触发 Plan-and-Execute 多步推理流程。这是影响<strong>全公司所有顾问</strong>的开关，
+                    请谨慎操作。
+                </p>
+                <div id="configContainer">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 关闭确认模态框 -->
+<div class="modal fade" id="confirmDisableModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle text-warning"></i> 确认关闭</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                确定要关闭 F17 跨模块综合推理吗？关闭后全公司顾问都会立即受影响，改为 F16 知识库问答兜底。
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDisableBtn">确认关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    function loadConfig() {
+        $.get('/api/system_config')
+            .done(function(response) {
+                if (response.success) {
+                    renderConfig(response.data.reasoning_enabled);
+                } else {
+                    showAlert('加载配置失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
+    }
+
+    function renderConfig(enabled) {
+        const container = $('#configContainer');
+        const badge = enabled
+            ? '<span class="badge bg-success">已开启</span>'
+            : '<span class="badge bg-secondary">已关闭</span>';
+        const btnHtml = enabled
+            ? '<button class="btn btn-outline-danger" id="toggleBtn" data-bs-toggle="modal" data-bs-target="#confirmDisableModal"><i class="fas fa-power-off"></i> 关闭</button>'
+            : '<button class="btn btn-outline-success" id="toggleBtn"><i class="fas fa-power-off"></i> 开启</button>';
+
+        container.html(`
+            <div class="d-flex align-items-center gap-3">
+                <span>当前状态：</span>${badge}
+                <div class="ms-3">${btnHtml}</div>
+            </div>
+        `);
+
+        if (!enabled) {
+            $('#toggleBtn').click(function() {
+                setReasoningEnabled(true);
+            });
+        }
+    }
+
+    function setReasoningEnabled(enabled) {
+        $.ajax({
+            url: '/api/system_config',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ enabled: enabled }),
+            success: function(response) {
+                if (response.success) {
+                    $('#confirmDisableModal').modal('hide');
+                    showAlert(enabled ? '已开启 F17 跨模块综合推理' : '已关闭 F17 跨模块综合推理', 'success');
+                    loadConfig();
+                } else {
+                    showAlert('操作失败: ' + response.error, 'danger');
+                }
+            },
+            error: function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            }
+        });
+    }
+
+    $('#confirmDisableBtn').click(function() {
+        setReasoningEnabled(false);
+    });
+
+    function showAlert(message, type) {
+        const safeType = safeAlertType(type);
+        const alert = `
+            <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alert);
+    }
+
+    loadConfig();
+});
+</script>
+{% endblock %}

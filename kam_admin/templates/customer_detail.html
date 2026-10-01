@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}客户详情 - 恒创智能装备管理台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-user"></i> 客户详情
+                    <small class="text-muted">（客户ID: {{ external_id }}）</small>
+                </h5>
+                <a href="javascript:history.back()" class="btn btn-back">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </a>
+            </div>
+            <div class="card-body">
+                <div id="customerDetailContainer">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    const externalId = '{{ external_id }}';
+
+    // 加载客户详情。04号文档第五节：越权/不存在统一返回403，
+    // 前端拿到失败响应统一展示为"无法查看"，不做区分提示。
+    function loadCustomerDetail() {
+        $.get('/api/customers/' + externalId)
+            .done(function(response) {
+                if (response.success) {
+                    renderCustomerDetail(response.data);
+                } else {
+                    showAlert('加载客户详情失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function(xhr) {
+                if (xhr.status === 403) {
+                    showAlert('无权限查看该客户，或客户不存在', 'warning');
+                } else {
+                    showAlert('网络错误，请稍后重试', 'danger');
+                }
+            });
+    }
+
+    // 渲染客户详情
+    function renderCustomerDetail(data) {
+        const container = $('#customerDetailContainer');
+        container.empty();
+
+        if (!data.external_user) {
+            container.append('<div class="text-center text-muted">客户不存在</div>');
+            return;
+        }
+
+        // 客户基本信息。注意：kam_client.get_customer_detail 聚合方法
+        // 返回的客户字段名是 external_user。
+        const customerInfo = `
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-user"></i> 基本信息</h6>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row">
+                                <dt class="col-sm-4">客户昵称:</dt>
+                                <dd class="col-sm-8">${escapeHtml(data.external_user.name || '-')}</dd>
+                                <dt class="col-sm-4">备注名:</dt>
+                                <dd class="col-sm-8">${escapeHtml(data.external_user.remark_name || '-')}</dd>
+                                <dt class="col-sm-4">外部ID:</dt>
+                                <dd class="col-sm-8"><code>${escapeHtml(data.external_user.external_id)}</code></dd>
+                                <dt class="col-sm-4">Union ID:</dt>
+                                <dd class="col-sm-8"><code>${escapeHtml(data.external_user.union_id)}</code></dd>
+                                <dt class="col-sm-4">所属顾问:</dt>
+                                <dd class="col-sm-8">${escapeHtml(data.follow_user_id)}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-tags"></i> 标签信息</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="customerTags">
+                                ${renderCustomerTags(data.tags)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-12">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-user-circle"></i> Profile信息</h6>
+                        </div>
+                        <div class="card-body">
+                            ${renderProfileItems(data.profile)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-robot"></i> AI标签建议（只读展示）</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-2">
+                                这张卡片单独调用 <code>/api/tags/suggestions/&lt;external_id&gt;</code>
+                                接口（ F04收尾接入），只读展示当前标签，与上方"标签信息"卡片
+                                数据来源不同（那张走 /api/customers 聚合接口），目前巧合展示的是同一份数据——
+                                真正触发AI标签推荐生成是 kam_sidebar 的职责（02号架构文档295行定位：
+                                admin只读展示，不触发生成），这里只是验证新接口本身接线正确。
+                            </p>
+                            <div id="aiTagSuggestions">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.append(customerInfo);
+
+        loadAiTagSuggestions();
+
+        // 原始JSON数据
+        const jsonData = `
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">原始JSON数据</h6>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="jsonAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="customerJsonHeader">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#customerJsonCollapse">
+                                    客户基本信息
+                                </button>
+                            </h2>
+                            <div id="customerJsonCollapse" class="accordion-collapse collapse" data-bs-parent="#jsonAccordion">
+                                <div class="accordion-body">
+                                    <pre class="bg-light p-3 rounded"><code>${escapeHtml(JSON.stringify(data.external_user, null, 2))}</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="tagsJsonHeader">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tagsJsonCollapse">
+                                    标签信息
+                                </button>
+                            </h2>
+                            <div id="tagsJsonCollapse" class="accordion-collapse collapse" data-bs-parent="#jsonAccordion">
+                                <div class="accordion-body">
+                                    <pre class="bg-light p-3 rounded"><code>${escapeHtml(JSON.stringify(data.tags, null, 2))}</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="profileJsonHeader">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#profileJsonCollapse">
+                                    Profile信息
+                                </button>
+                            </h2>
+                            <div id="profileJsonCollapse" class="accordion-collapse collapse" data-bs-parent="#jsonAccordion">
+                                <div class="accordion-body">
+                                    <pre class="bg-light p-3 rounded"><code>${escapeHtml(JSON.stringify(data.profile, null, 2))}</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.append(jsonData);
+    }
+    
+    //  F04收尾：单独调 /api/tags/suggestions/<external_id>，
+    // 验证这个新接入的只读接口本身返回正确——和上方"标签信息"卡片
+    // 走的是不同的接口（那个走 get_customer_detail 聚合），这里故意
+    // 单独发一次请求而不是复用同一份响应，为了真的验证这条独立路由。
+    function loadAiTagSuggestions() {
+        $.get('/api/tags/suggestions/' + externalId)
+            .done(function(response) {
+                const container = $('#aiTagSuggestions');
+                if (response.success) {
+                    container.html(renderCustomerTags(response.data.tags));
+                } else {
+                    container.html('<span class="text-danger">加载失败: ' + escapeHtml(response.error) + '</span>');
+                }
+            })
+            .fail(function(xhr) {
+                $('#aiTagSuggestions').html('<span class="text-danger">网络错误，请稍后重试</span>');
+            });
+    }
+
+    // 渲染客户标签
+    function renderCustomerTags(tags) {
+        // tags 是一个标签对象数组，包含完整的标签信息
+        if (!tags || !Array.isArray(tags) || tags.length === 0) {
+            return '<span class="text-muted">暂无标签</span>';
+        }
+        
+        let html = '';
+        tags.forEach(function(tag) {
+            const tagName = tag.tag_name || '未知标签';
+            html += `<span class="badge bg-primary me-1 mb-1">${escapeHtml(tagName)}</span>`;
+        });
+        
+        return html;
+    }
+    
+    // 渲染Profile信息。
+    //
+    // 画像按字段保存 value/confidence/source/status，前端逐字段展示；
+    // profile.profile_items 是 {field_name: {value, confidence, source, status}} 字典。
+    const FIELD_NAME_MAP = {
+        company_name: '所属企业', project_stage: '技改项目阶段', company_scale: '企业规模',
+        production_status: '主营产品与产线现状', budget_range: '预算区间', tech_goal: '技改目标',
+        pain_points: '核心痛点', decision_makers: '决策链',
+        reply_time: '活跃沟通时段', price_sensitivity: '价格敏感度',
+        decision_style: '决策风格', competitor_info: '竞品接触情况'
+    };
+    const STATUS_BADGE_MAP = {
+        draft: ['secondary', '草稿'],
+        need_verify: ['warning', '待核实'],
+        confirmed: ['success', '已确认'],
+        discarded: ['dark', '已放弃'],
+        need_regenerate: ['info', '待重新生成']
+    };
+
+    function renderProfileItems(profile) {
+        const items = profile && profile.profile_items;
+        if (!items || Object.keys(items).length === 0) {
+            return '<div class="text-muted">暂无Profile信息（尚未生成画像草稿）</div>';
+        }
+
+        let html = '<div class="row">';
+        Object.keys(items).forEach(function(fieldName) {
+            const item = items[fieldName];
+            const displayName = FIELD_NAME_MAP[fieldName] || fieldName;
+            const value = (item.value !== undefined && item.value !== null && item.value !== '') ? item.value : '-';
+            const confidence = (item.confidence !== undefined && item.confidence !== null) ? item.confidence : '-';
+            const [badgeClass, badgeText] = STATUS_BADGE_MAP[item.status] || ['secondary', item.status || '未知'];
+
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="profile-item border rounded p-2">
+                        <dt class="fw-bold text-muted small">
+                            ${escapeHtml(displayName)}
+                            <span class="badge bg-${badgeClass} ms-1">${escapeHtml(badgeText)}</span>
+                        </dt>
+                        <dd class="mb-1">${escapeHtml(value)}<small class="text-muted"> （置信度: ${escapeHtml(confidence)}）</small></dd>
+                        ${item.source ? `<dd class="mb-0"><small class="text-muted">来源: ${escapeHtml(item.source)}</small></dd>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+
+        return html;
+    }
+    
+    // 显示提示信息
+    function showAlert(message, type) {
+        const safeType = safeAlertType(type);
+        const alert = `
+            <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alert);
+    }
+    
+    // 初始加载
+    loadCustomerDetail();
+});
+</script>
+{% endblock %} 

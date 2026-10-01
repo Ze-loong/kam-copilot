@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}员工列表 - 恒创智能装备管理台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-users"></i> 员工列表
+                </h5>
+                {% if session.role == 'super_admin' %}
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                    <i class="fas fa-plus"></i> 开通新账号
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>员工姓名</th>
+                                <th>用户ID</th>
+                                <th>角色</th>
+                                <th>区域</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">加载中...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加员工模态框 -->
+<div class="modal fade" id="addEmployeeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">开通新账号</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addEmployeeForm">
+                    <div class="mb-3">
+                        <label for="userId" class="form-label">员工用户ID</label>
+                        <input type="text" class="form-control" id="userId" name="user_id" required>
+                        <div class="form-text">请输入员工的用户ID，登录时使用</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="employeeName" class="form-label">员工姓名</label>
+                        <input type="text" class="form-control" id="employeeName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="employeePassword" class="form-label">初始密码</label>
+                        <input type="password" class="form-control" id="employeePassword" name="password" required>
+                        <div class="form-text">密码将以加盐哈希形式存储</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="employeeRole" class="form-label">角色</label>
+                        <select class="form-select" id="employeeRole" name="role" required>
+                            <option value="consultant">普通顾问</option>
+                            <option value="regional_manager">区域主管</option>
+                            <option value="super_admin">超级管理员</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="employeeRegion" class="form-label">所属区域</label>
+                        <input type="text" class="form-control" id="employeeRegion" name="region" required>
+                        <div class="form-text">如：华东、华北</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmAddEmployee">确认</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 确认禁用模态框 -->
+<div class="modal fade" id="deleteEmployeeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认禁用</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要禁用员工 <strong id="deleteEmployeeName"></strong> 的账号吗？</p>
+                <p class="text-muted"><small>历史客户归属和操作记录会保留</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteEmployee">禁用</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    let currentDeleteUserId = null;
+    const canManageEmployees = {{ 'true' if session.role == 'super_admin' else 'false' }};
+    
+    // 加载员工列表
+    function loadEmployees() {
+        $.get('/api/employees')
+            .done(function(response) {
+                if (response.success) {
+                    renderEmployeeTable(response.data);
+                } else {
+                    showAlert('加载员工列表失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
+    }
+    
+    // 渲染员工表格
+    function renderEmployeeTable(employees) {
+        const tbody = $('#employeeTableBody');
+        tbody.empty();
+        
+        if (employees.length === 0) {
+            tbody.append('<tr><td colspan="5" class="text-center text-muted">暂无员工数据</td></tr>');
+            return;
+        }
+        
+        employees.forEach(function(employee) {
+            const row = `
+                <tr>
+                    <td>${escapeHtml(employee.name)}</td>
+                    <td>${escapeHtml(employee.user_id)}</td>
+                    <td>${escapeHtml(employee.role)}</td>
+                    <td>${escapeHtml(employee.region)}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary view-customers-btn" data-user-id="${escapeHtml(employee.user_id)}">
+                                <i class="fas fa-users"></i> 查看客户
+                            </button>
+                            ${canManageEmployees ? `
+                            <button class="btn btn-outline-danger delete-employee-btn" data-user-id="${escapeHtml(employee.user_id)}" data-employee-name="${escapeHtml(employee.name)}">
+                                <i class="fas fa-user-slash"></i> 禁用
+                            </button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+    }
+
+    $('#employeeTableBody').on('click', '.view-customers-btn', function() {
+        viewCustomers($(this).data('user-id'));
+    });
+
+    $('#employeeTableBody').on('click', '.delete-employee-btn', function() {
+        deleteEmployee($(this).data('user-id'), $(this).data('employee-name'));
+    });
+    
+    // 添加员工
+    $('#confirmAddEmployee').click(function() {
+        const formData = {
+            user_id: $('#userId').val(),
+            name: $('#employeeName').val(),
+            password: $('#employeePassword').val(),
+            role: $('#employeeRole').val(),
+            region: $('#employeeRegion').val()
+        };
+
+        if (!formData.user_id || !formData.name || !formData.password || !formData.role || !formData.region) {
+            showAlert('请填写完整信息', 'warning');
+            return;
+        }
+        
+        $.ajax({
+            url: '/api/employees',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                if (response.success) {
+                    $('#addEmployeeModal').modal('hide');
+                    $('#addEmployeeForm')[0].reset();
+                    showAlert('员工添加成功', 'success');
+                    loadEmployees();
+                } else {
+                    showAlert('添加失败: ' + response.error, 'danger');
+                }
+            },
+            error: function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            }
+        });
+    });
+    
+    // 禁用员工（走 DELETE 语义但后端只做软禁用）
+    window.deleteEmployee = function(userId, name) {
+        currentDeleteUserId = userId;
+        $('#deleteEmployeeName').text(name);
+        $('#deleteEmployeeModal').modal('show');
+    };
+    
+    $('#confirmDeleteEmployee').click(function() {
+        if (!currentDeleteUserId) return;
+        
+        $.ajax({
+            url: '/api/employees/' + currentDeleteUserId,
+            method: 'DELETE',
+            success: function(response) {
+                if (response.success) {
+                    $('#deleteEmployeeModal').modal('hide');
+                    showAlert('员工账号已禁用', 'success');
+                    loadEmployees();
+                } else {
+                    showAlert('禁用失败: ' + response.error, 'danger');
+                }
+            },
+            error: function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            }
+        });
+    });
+    
+    // 查看所选员工名下的客户。后端会再次校验当前登录者是否有权查看该员工，
+    // 不能只依赖员工列表页面传入的 userId。
+    window.viewCustomers = function(userId) {
+        window.location.href = '/employee_customers/' + encodeURIComponent(userId);
+    };
+    
+    // 显示提示信息
+    function showAlert(message, type) {
+        const safeType = safeAlertType(type);
+        const alert = `
+            <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alert);
+    }
+    
+    // 初始加载
+    loadEmployees();
+});
+</script>
+{% endblock %} 

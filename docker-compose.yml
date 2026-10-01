@@ -1,0 +1,31 @@
+services:
+  kam-postgres:
+    image: postgres:16
+    ports:
+      - "127.0.0.1:${KAM_DB_PORT:-5442}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${KAM_DB_PASSWORD:-postgres}
+    volumes:
+      - kam_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  kam-postgres-vector:
+    image: ankane/pgvector
+    ports:
+      - "127.0.0.1:${KAM_VECTOR_DB_PORT:-5443}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${KAM_VECTOR_DB_PASSWORD:-postgres}
+    volumes:
+      - kam_vector_data:/var/lib/postgresql/data
+      - ./scripts/init-vector.sql:/docker-entrypoint-initdb.d/init-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  kam_postgres_data:
+  kam_vector_data:
