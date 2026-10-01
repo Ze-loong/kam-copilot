@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+
+
+    <title>{% block title %} 恒创智能装备管理台{% endblock %}</title>
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/all.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="admin-shell">
+    <aside class="admin-sidebar">
+        <div class="sidebar-brand">
+            <a class="navbar-brand" href="{{ url_for('customers') }}">
+                <span class="brand-symbol"><i class="fas fa-industry"></i></span>
+                <span class="brand-copy">恒创智能装备<small>运营管理台</small></span>
+            </a>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-group">
+                <span class="nav-group-title">客户管理</span>
+                <ul>
+                    <li>
+                        <a class="nav-link {% if request.endpoint in ('customers', 'customer_detail', 'employee_customers', 'customer_orders') %}active{% endif %}" href="{{ url_for('customers') }}">
+                            <i class="fas fa-address-book"></i><span>客户管理</span>
+                        </a>
+                    </li>
+                    {% if session.role in ('regional_manager', 'super_admin') %}
+                    <li>
+                        <a class="nav-link {% if request.endpoint == 'employees' %}active{% endif %}" href="{{ url_for('employees') }}">
+                            <i class="fas fa-users"></i><span>员工列表</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% if session.role in ('regional_manager', 'super_admin') %}
+            <div class="nav-group">
+                <span class="nav-group-title">业务配置</span>
+                <ul>
+                    <li>
+                        <a class="nav-link {% if request.endpoint == 'tags' %}active{% endif %}" href="{{ url_for('tags') }}">
+                            <i class="fas fa-tags"></i><span>标签体系</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-link {% if request.endpoint == 'kb' %}active{% endif %}" href="{{ url_for('kb') }}">
+                            <i class="fas fa-book"></i><span>资料库</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <div class="nav-group">
+                <span class="nav-group-title">数据洞察</span>
+                <ul>
+                    <li>
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                            <i class="fas fa-chart-bar"></i><span>数据看板</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-link {% if request.endpoint == 'ai_adoption_rate' %}active{% endif %}" href="{{ url_for('ai_adoption_rate') }}">
+                            <i class="fas fa-robot"></i><span>AI采纳率</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+            {% if session.role == 'super_admin' %}
+            <div class="nav-group">
+                <span class="nav-group-title">系统管理</span>
+                <ul>
+                    <li>
+                        <a class="nav-link {% if request.endpoint == 'system_config' %}active{% endif %}" href="{{ url_for('system_config') }}">
+                            <i class="fas fa-sliders-h"></i><span>系统配置</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        </nav>
+        <div class="sidebar-user">
+            <span class="user-avatar"><i class="fas fa-user"></i></span>
+            <div><strong>{{ session.name }}</strong><small>{{ session.role }}</small></div>
+            <a href="{{ url_for('logout') }}" title="退出登录"><i class="fas fa-sign-out-alt"></i></a>
+        </div>
+    </aside>
+
+    <main class="admin-main">
+    <div class="container-fluid admin-content">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+    </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jquery-3.6.0.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html> 

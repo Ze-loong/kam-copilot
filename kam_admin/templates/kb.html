@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}资料库管理 - 恒创智能装备管理台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-book"></i> 资料库管理
+                </h5>
+                <button class="btn btn-primary" id="uploadKbBtn" data-bs-toggle="modal" data-bs-target="#uploadKbModal">
+                    <i class="fas fa-upload"></i> 上传/替换资料
+                </button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    这里的资料供 F16 知识库问答 / F17 跨模块综合推理检索使用。
+                    同一"文档名称"再次上传视为<strong>替换</strong>——旧内容会被新内容整体覆盖，不是追加。
+                </p>
+                <div id="kbContainer">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 上传/替换资料模态框 -->
+<div class="modal fade" id="uploadKbModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">上传/替换资料</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadKbForm">
+                    <div class="mb-3">
+                        <label class="form-label">资料类别</label>
+                        <select class="form-select" id="kbCategory" required>
+                            {% for value, label in categories %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">文档名称</label>
+                        <input type="text" class="form-control" id="kbSourceDoc" placeholder="如：集团概况" required>
+                        <div class="form-text">同名文档会被整体替换，建议用有辨识度的名称。</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">内容（粘贴文本，或下方选择文件二选一）</label>
+                        <textarea class="form-control" id="kbContent" rows="8" placeholder="直接粘贴资料正文..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">或上传 .txt 文件</label>
+                        <input type="file" class="form-control" id="kbFile" accept=".txt">
+                        <div class="form-text">仅支持 UTF-8 编码的 .txt 文本文件；PDF/Word 请先手动转成 txt。</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmUploadKb">确认上传</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    function loadKbDocuments() {
+        $.get('/api/kb/list')
+            .done(function(response) {
+                if (response.success) {
+                    renderKbDocuments(response.data);
+                } else {
+                    showAlert('加载资料库列表失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
+    }
+
+    const categoryLabels = {
+        {% for value, label in categories %}
+        "{{ value }}": "{{ label }}"{% if not loop.last %},{% endif %}
+        {% endfor %}
+    };
+
+    function renderKbDocuments(documents) {
+        const container = $('#kbContainer');
+        container.empty();
+
+        if (documents.length === 0) {
+            container.append('<div class="text-center text-muted">暂无资料，点击右上角"上传/替换资料"新增</div>');
+            return;
+        }
+
+        const rows = documents.map(function(doc, index) {
+            const categoryLabel = categoryLabels[doc.category] || doc.category;
+            const updatedAt = doc.updated_at ? doc.updated_at.replace('T', ' ').slice(0, 19) : '-';
+            return `
+                <tr>
+                    <td><span class="badge bg-secondary">${escapeHtml(categoryLabel)}</span></td>
+                    <td>${escapeHtml(doc.source_doc)}</td>
+                    <td>${escapeHtml(doc.chunk_count)}</td>
+                    <td>${escapeHtml(updatedAt)}</td>
+                    <td><button type="button" class="btn btn-sm btn-outline-primary view-kb-btn" data-index="${index}">查看</button></td>
+                </tr>
+            `;
+        }).join('');
+
+        container.append(`
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>类别</th>
+                        <th>文档名称</th>
+                        <th>片段数</th>
+                        <th>最后更新时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `);
+
+        // data-index存整数索引、不把source_doc序列化进HTML属性——避免文档名称
+        // 含特殊字符（引号等）时出现属性注入风险，点击时直接从闭包里的
+        // documents数组按索引取原始对象，不经过HTML文本这一层。
+        container.find('.view-kb-btn').on('click', function () {
+            viewKbDocument(documents[$(this).data('index')]);
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // 查看资料内容 + 复用上传框做"一键编辑重传"（）
+    // ------------------------------------------------------------------
+
+    function viewKbDocument(doc) {
+        $.get('/api/kb/detail', { source_doc: doc.source_doc })
+            .done(function (response) {
+                if (response.success) {
+                    $('#kbCategory').val(doc.category);
+                    $('#kbSourceDoc').val(doc.source_doc);
+                    $('#kbContent').val(response.data.content);
+                    $('#kbFile').val('');
+                    $('#uploadKbModal').modal('show');
+                } else {
+                    showAlert('加载资料内容失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function () {
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
+    }
+
+    // 顶部"上传/替换资料"按钮：每次点开都先清空表单，避免残留上一次
+    // "查看"时灌进去的内容——modal本身在上传成功时才会reset()，只点开
+    // 不提交就关掉的话，旧值会一直留在表单里干扰下一次真正的新增。
+    $('#uploadKbBtn').on('click', function () {
+        $('#uploadKbForm')[0].reset();
+    });
+
+    function showAlert(message, type) {
+        const safeType = safeAlertType(type);
+        const alert = `
+            <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alert);
+    }
+
+    $('#confirmUploadKb').click(function() {
+        const sourceDoc = $('#kbSourceDoc').val().trim();
+        const category = $('#kbCategory').val();
+        const content = $('#kbContent').val().trim();
+        const fileInput = document.getElementById('kbFile');
+        const file = fileInput.files[0];
+
+        if (!sourceDoc) {
+            showAlert('请填写文档名称', 'warning');
+            return;
+        }
+        if (!content && !file) {
+            showAlert('请粘贴文本内容，或选择一个 .txt 文件', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('source_doc', sourceDoc);
+        formData.append('category', category);
+        formData.append('content', content);
+        if (file) {
+            formData.append('file', file);
+        }
+
+        const btn = $('#confirmUploadKb');
+        btn.prop('disabled', true).text('上传中...');
+
+        $.ajax({
+            url: '/api/kb/upload',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    $('#uploadKbModal').modal('hide');
+                    $('#uploadKbForm')[0].reset();
+                    showAlert(`上传成功，写入 ${response.data.chunk_count} 条片段`, 'success');
+                    loadKbDocuments();
+                } else {
+                    showAlert('上传失败: ' + response.error, 'danger');
+                }
+            },
+            error: function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            },
+            complete: function() {
+                btn.prop('disabled', false).text('确认上传');
+            }
+        });
+    });
+
+    loadKbDocuments();
+});
+</script>
+{% endblock %}

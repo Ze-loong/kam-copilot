@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KAM Copilot 客户画像侧边栏</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/chat.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand-lockup">
+      <span class="brand-mark">AI</span>
+      <div>
+        <strong>恒创智能装备</strong>
+        <span>销售智能助手</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="user-info" id="user-info">加载中...</div>
+      <button id="logout-btn">退出登录</button>
+    </div>
+  </div>
+
+  <div class="panel panel-head">
+    <header class="page-intro">
+      <span class="eyebrow">AI COPILOT</span>
+      <h1>客户洞察工作台</h1>
+      <p>根据客户沟通记录生成画像、回复建议与标签推荐，重要结论由你确认后生效。</p>
+    </header>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="profile"><span class="tab-icon">01</span>客户画像</button>
+      <button class="tab-btn" data-tab="reply"><span class="tab-icon">02</span>回复建议</button>
+      <button class="tab-btn" data-tab="tag"><span class="tab-icon">03</span>标签推荐</button>
+      <button class="tab-btn" data-tab="schedule"><span class="tab-icon">04</span>日程提醒 <span class="coming-soon">开发中</span></button>
+      <button class="tab-btn" data-tab="chat"><span class="tab-icon">05</span>沟通记录</button>
+      <button class="tab-btn" data-tab="kb"><span class="tab-icon">06</span>知识库问答</button>
+      <button class="tab-btn" data-tab="reasoning"><span class="tab-icon">07</span>智能推荐</button>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-standard">
+    <div id="tab-profile">
+      <div class="card">
+        <form class="customer-form" id="generate-form">
+          <input type="text" id="external_id" placeholder="输入客户ID（如 ext_8891）" required />
+          <button type="submit" id="generate-btn">生成画像</button>
+        </form>
+      </div>
+      <div id="field-list"></div>
+      <div class="empty-hint" id="empty-hint">还没有画像数据，输入客户ID后点"生成画像"</div>
+    </div>
+
+    <div id="tab-reply" style="display:none">
+      <div class="card">
+        <form class="customer-form" id="generate-reply-form">
+          <input type="text" id="reply_external_id" placeholder="输入客户ID（如 ext_8891）" required />
+          <select id="reply_scene">
+            <option value="sales">销售场景</option>
+            <option value="kf">客服场景</option>
+          </select>
+          <button type="submit" id="generate-reply-btn">生成回复建议</button>
+        </form>
+      </div>
+      <div id="reply-result"></div>
+      <div class="empty-hint" id="reply-empty-hint">还没有回复建议，输入客户ID、选择场景后点"生成回复建议"</div>
+    </div>
+    <div id="tab-tag" style="display:none">
+      <div class="card">
+        <form class="customer-form" id="generate-tags-form">
+          <input type="text" id="tag_external_id" placeholder="输入客户ID（如 ext_8891）" required />
+          <button type="submit" id="generate-tags-btn">生成标签推荐</button>
+        </form>
+      </div>
+      <div id="tag-result"></div>
+      <div class="empty-hint" id="tag-empty-hint">还没有标签推荐，输入客户ID后点"生成标签推荐"</div>
+    </div>
+    <div id="tab-schedule" style="display:none">
+      <div class="placeholder-tab">
+        <strong>日程提醒正在建设中</strong>
+        <span>后续将根据客户意向与跟进记录自动建议回访时间。</span>
+      </div>
+    </div>
+    <div id="tab-kb" style="display:none">
+      <div class="card">
+        <form class="customer-form" id="generate-kb-form">
+          <input type="text" id="kb_question" placeholder="客户问题，如 设备质保期是多久？" required />
+          <button type="submit" id="generate-kb-btn">提问</button>
+        </form>
+      </div>
+      <div id="kb-result"></div>
+      <div class="empty-hint" id="kb-empty-hint">还没有提问，输入问题后点"提问"（知识库检索不需要绑定具体客户）</div>
+    </div>
+    <div id="tab-reasoning" style="display:none">
+      <div class="card">
+        <form class="customer-form" id="generate-reasoning-form">
+          <input type="text" id="reasoning_external_id" placeholder="输入客户ID（如 ext_8891）" required />
+          <input type="text" id="reasoning_question" placeholder="复杂问题，如 第二条焊装线怎样推进？" required />
+          <button type="submit" id="generate-reasoning-btn">开始推理</button>
+        </form>
+      </div>
+      <div id="reasoning-result"></div>
+      <div class="empty-hint" id="reasoning-empty-hint">还没有发起推理，输入客户ID和问题后点"开始推理"，页面会逐步显示查询进度</div>
+    </div>
+  </div>
+
+  <main class="workspace" id="tab-chat" style="display:none">
+    <aside class="customer-panel">
+      <div class="panel-title"><div><span class="eyebrow">MY CUSTOMERS</span><h1>我的客户</h1></div><b id="customer-count">0</b></div>
+      <div id="customer-list" class="customer-list"><div class="state-card">正在加载客户...</div></div>
+    </aside>
+    <section class="conversation-panel">
+      <div class="conversation-header">
+        <div><span class="eyebrow">CONVERSATION</span><h2 id="conversation-title">请选择一位客户</h2><p id="conversation-subtitle">查看历史沟通，并让 AI 建议下一句怎么回复</p></div>
+        <div class="channel-switch" role="group" aria-label="沟通渠道">
+          <button class="channel-btn active" data-channel="wxqy_msg">企微销售</button>
+          <button class="channel-btn" data-channel="wxkf_msg">微信客服</button>
+        </div>
+      </div>
+      <div id="message-list" class="message-list"><div class="empty-state"><strong>从左侧选择客户</strong><span>历史聊天记录会显示在这里</span></div></div>
+      <div class="suggestion-zone">
+        <button id="suggest-btn" disabled><span>✦</span> 生成 AI 话术建议</button>
+        <div id="suggestion-card" class="suggestion-card" hidden></div>
+      </div>
+    </section>
+    <aside class="profile-panel">
+      <span class="eyebrow">CUSTOMER PROFILE</span><h2>客户信息</h2>
+      <div id="profile-card" class="profile-card"><div class="empty-state compact">选择客户后查看基本信息</div></div>
+      <div class="semantic-note"><strong>AI 建议不会自动发送</strong><p>建议仅供顾问参考，确认合适后请在企业微信中回复客户。</p></div>
+    </aside>
+  </main>
+
+  <script src="/static/app.js"></script>
+  <script src="/static/chat.js"></script>
+</body>
+</html>

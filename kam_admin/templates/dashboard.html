@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}数据看板 - 恒创智能装备管理台{% endblock %}
+
+{% block content %}
+<div class="dashboard-heading d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3">
+    <div>
+        <span class="section-eyebrow">OVERVIEW</span>
+        <h2 class="mb-1">数据看板</h2>
+        <p class="text-muted mb-0">掌握当前客户、订单与画像确认进度</p>
+    </div>
+    <span class="data-scope-badge"><i class="fas fa-shield-alt"></i> 当前权限可见数据</span>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <details class="metric-note mb-4">
+            <summary><i class="fas fa-info-circle"></i> 指标口径说明</summary>
+            <div>
+            <i class="fas fa-info-circle"></i>
+            以下指标按当前权限可见的数据统计。“有订单客户占比”表示客户中已有订单的比例；
+            “按顾问分组的客户数”表示客户分布。商机阶段、维保续约与响应时长尚未纳入本看板。
+            </div>
+        </details>
+    </div>
+</div>
+
+<div class="row" id="overviewCards">
+    <div class="col-12 text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-2">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-user-circle"></i> 画像字段确认进度</h6>
+            </div>
+            <div class="card-body" id="profileStatusContainer">
+                <div class="text-muted">加载中...</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-users"></i> 按顾问分组的客户数（非人效分析）</h6>
+            </div>
+            <div class="card-body" id="ownerDistributionContainer">
+                <div class="text-muted">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    const STATUS_LABEL_MAP = {
+        draft: ['secondary', '草稿'],
+        need_verify: ['warning', '待核实'],
+        confirmed: ['success', '已确认'],
+        discarded: ['dark', '已放弃'],
+        need_regenerate: ['info', '待重新生成']
+    };
+
+    function loadDashboard() {
+        $.get('/api/dashboard')
+            .done(function(response) {
+                if (response.success) {
+                    renderOverview(response.data);
+                    renderProfileStatus(response.data.profile_status_counts);
+                    renderOwnerDistribution(response.data.customers_by_owner);
+                } else {
+                    showAlert('加载看板数据失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
+    }
+
+    function renderOverview(data) {
+        const ratePercent = (data.order_conversion_rate * 100).toFixed(1);
+        const cards = [
+            { label: '客户总数', value: data.customer_count, icon: 'fa-users', tone: 'blue' },
+            { label: '订单总数', value: data.order_count, icon: 'fa-shopping-cart', tone: 'teal' },
+            { label: '有订单客户占比', value: ratePercent + '%', icon: 'fa-chart-pie',
+              tone: 'amber',
+              sub: data.customers_with_orders + ' / ' + data.customer_count + ' 名客户有订单' }
+        ];
+
+        const container = $('#overviewCards');
+        container.empty();
+        cards.forEach(function(card) {
+            container.append(`
+                <div class="col-md-4 mb-3">
+                    <div class="card metric-card metric-${card.tone} h-100">
+                        <div class="card-body">
+                            <div class="metric-icon"><i class="fas ${card.icon}"></i></div>
+                            <div class="metric-content">
+                            <div class="metric-label">${escapeHtml(card.label)}</div>
+                            <h3 class="mb-0">${escapeHtml(card.value)}</h3>
+                            ${card.sub ? `<small class="text-muted">${escapeHtml(card.sub)}</small>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+        });
+    }
+
+    function renderProfileStatus(counts) {
+        const container = $('#profileStatusContainer');
+        container.empty();
+
+        const total = Object.values(counts).reduce((a, b) => a + b, 0);
+        if (total === 0) {
+            container.append('<div class="text-muted">暂无画像数据</div>');
+            return;
+        }
+
+        Object.keys(counts).forEach(function(status) {
+            const count = counts[status];
+            const [badgeClass, label] = STATUS_LABEL_MAP[status] || ['secondary', status];
+            const percent = total ? ((count / total) * 100).toFixed(1) : 0;
+            container.append(`
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span><span class="badge bg-${badgeClass} me-2">${escapeHtml(label)}</span>${escapeHtml(count)} 条</span>
+                    <span class="text-muted small">${percent}%</span>
+                </div>
+                <div class="progress mb-3" style="height: 6px;">
+                    <div class="progress-bar bg-${badgeClass}" style="width: ${percent}%"></div>
+                </div>
+            `);
+        });
+    }
+
+    function renderOwnerDistribution(distribution) {
+        const container = $('#ownerDistributionContainer');
+        container.empty();
+
+        const owners = Object.keys(distribution);
+        if (owners.length === 0) {
+            container.append('<div class="text-muted">暂无客户数据</div>');
+            return;
+        }
+
+        const maxCount = Math.max(...Object.values(distribution));
+        owners.forEach(function(followUserId) {
+            const count = distribution[followUserId];
+            const percent = maxCount ? ((count / maxCount) * 100).toFixed(0) : 0;
+            container.append(`
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span>${escapeHtml(followUserId)}</span>
+                    <span class="text-muted small">${escapeHtml(count)} 名客户</span>
+                </div>
+                <div class="progress mb-3" style="height: 6px;">
+                    <div class="progress-bar bg-primary" style="width: ${percent}%"></div>
+                </div>
+            `);
+        });
+    }
+
+    function showAlert(message, type) {
+        const safeType = safeAlertType(type);
+        const alert = `
+            <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alert);
+    }
+
+    loadDashboard();
+});
+</script>
+{% endblock %}

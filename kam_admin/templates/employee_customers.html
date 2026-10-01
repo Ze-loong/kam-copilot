@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}客户管理 - 恒创智能装备管理台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-users"></i> 客户管理
+                    {% if selected_follow_user_id %}
+                    <small class="text-muted">（员工 {{ selected_follow_user_id }} 名下客户）</small>
+                    {% else %}
+                    <small class="text-muted">（当前角色可见范围内的全部客户）</small>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>客户昵称</th>
+                                <th>备注名</th>
+                                <th>外部ID</th>
+                                <th>所属顾问</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customerTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">加载中...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    const selectedFollowUserId = {{ selected_follow_user_id|default(none)|tojson }};
+
+    // 从员工列表进入时按被点击员工查询；从导航栏进入时展示当前角色
+    // 可见范围内的全部客户。两条接口都在后端执行权限校验。
+    function loadCustomers() {
+        const url = selectedFollowUserId
+            ? '/api/employee_customers/' + encodeURIComponent(selectedFollowUserId)
+            : '/api/customers';
+        $.get(url)
+            .done(function(response) {
+                if (response.success) {
+                    renderCustomerTable(response.data);
+                } else {
+                    showAlert('加载客户列表失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
+    }
+
+    // 渲染客户表格
+    function renderCustomerTable(customers) {
+        const tbody = $('#customerTableBody');
+        tbody.empty();
+
+        if (customers.length === 0) {
+            tbody.append('<tr><td colspan="5" class="text-center text-muted">暂无可见客户数据</td></tr>');
+            return;
+        }
+
+        customers.forEach(function(customer) {
+            const row = `
+                <tr>
+                    <td>${escapeHtml(customer.name || '-')}</td>
+                    <td>${escapeHtml(customer.remark_name || '-')}</td>
+                    <td><code>${escapeHtml(customer.external_id)}</code></td>
+                    <td>${escapeHtml(customer.follow_user_id)}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm action-buttons">
+                            <button class="btn btn-outline-info view-customer-btn" data-external-id="${escapeHtml(customer.external_id)}">
+                                <i class="fas fa-eye"></i> 查看详情
+                            </button>
+                            <button class="btn btn-outline-success view-orders-btn" data-union-id="${escapeHtml(customer.union_id)}">
+                                <i class="fas fa-shopping-cart"></i> 客户订单
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+    }
+
+    $('#customerTableBody').on('click', '.view-customer-btn', function() {
+        viewCustomerDetail($(this).data('external-id'));
+    });
+
+    $('#customerTableBody').on('click', '.view-orders-btn', function() {
+        viewCustomerOrders($(this).data('union-id'));
+    });
+
+    // 查看客户详情
+    window.viewCustomerDetail = function(externalId) {
+        window.location.href = '/customers/' + externalId;
+    };
+
+    // 查看客户订单
+    window.viewCustomerOrders = function(unionId) {
+        window.location.href = '/orders/' + unionId;
+    };
+
+    // 显示提示信息
+    function showAlert(message, type) {
+        const safeType = safeAlertType(type);
+        const alert = `
+            <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alert);
+    }
+    
+    // 初始加载
+    loadCustomers();
+});
+</script>
+{% endblock %} 

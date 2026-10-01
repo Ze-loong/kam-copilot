@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}标签体系 - 恒创智能装备管理台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-tags"></i> 标签体系
+                </h5>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTagModal">
+                    <i class="fas fa-plus"></i> 新增标签
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="tagsContainer">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新增标签模态框 -->
+<div class="modal fade" id="addTagModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增标签</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addTagForm">
+                    <div class="mb-3">
+                        <label class="form-label">标签ID</label>
+                        <input type="text" class="form-control" id="tagId" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">标签名称</label>
+                        <input type="text" class="form-control" id="tagName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">分组ID</label>
+                        <input type="text" class="form-control" id="tagGroupId" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">分组名称</label>
+                        <input type="text" class="form-control" id="tagGroupName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">策略ID</label>
+                        <input type="number" class="form-control" id="tagStrategyId" value="0" required>
+                        <div class="form-text">0 表示企业标签</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmAddTag">确认</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // 加载标签体系
+    function loadTags() {
+        $.get('/api/tags')
+            .done(function(response) {
+                if (response.success) {
+                    renderTags(response.data);
+                } else {
+                    showAlert('加载标签体系失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
+    }
+    
+    // 渲染标签体系
+    function renderTags(tags) {
+        const container = $('#tagsContainer');
+        container.empty();
+        
+        if (tags.length === 0) {
+            container.append('<div class="text-center text-muted">暂无标签数据</div>');
+            return;
+        }
+        
+        // 按策略和组分组
+        const grouped = {};
+        tags.forEach(function(tag) {
+            const strategyId = (tag.strategy_id !== undefined && tag.strategy_id !== null) ? tag.strategy_id : 'unknown';
+            const groupId = tag.group_id || 'unknown';
+            
+            if (!grouped[strategyId]) {
+                grouped[strategyId] = {};
+            }
+            if (!grouped[strategyId][groupId]) {
+                grouped[strategyId][groupId] = [];
+            }
+            grouped[strategyId][groupId].push(tag);
+        });
+        
+        // 渲染分组后的标签
+        // 按strategy_id排序，strategy_id=0排在顶部
+        const sortedStrategyIds = Object.keys(grouped).sort(function(a, b) {
+            // 处理unknown的情况
+            if (a === 'unknown' && b !== 'unknown') return 1;
+            if (b === 'unknown' && a !== 'unknown') return -1;
+            if (a === 'unknown' && b === 'unknown') return 0;
+            
+            const numA = parseInt(a);
+            const numB = parseInt(b);
+            
+            // strategy_id=0排在最前面
+            if (numA === 0 && numB !== 0) return -1;
+            if (numB === 0 && numA !== 0) return 1;
+            
+            return numA - numB;
+        });
+        
+        sortedStrategyIds.forEach(function(strategyId, strategyIndex) {
+            // 显示策略名称
+            const strategyIdNum = parseInt(strategyId);
+            const strategyName = (strategyIdNum === 0) ? '企业标签' : `策略: ${strategyId}`;
+            const strategyCard = `
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">${escapeHtml(strategyName)}</h6>
+                    </div>
+                    <div class="card-body" id="strategy-${strategyIndex}">
+                    </div>
+                </div>
+            `;
+            container.append(strategyCard);
+            
+            const strategyContainer = $(`#strategy-${strategyIndex}`);
+            
+            Object.keys(grouped[strategyId]).forEach(function(groupId, groupIndex) {
+                // 获取组名，优先使用group_name，fallback到group_id
+                const firstTag = grouped[strategyId][groupId][0];
+                const groupName = firstTag.group_name || groupId;
+                
+                const groupHtml = `
+                    <div class="mb-3">
+                        <h6 class="text-primary">组: ${escapeHtml(groupName)}</h6>
+                        <div class="row" id="group-${strategyIndex}-${groupIndex}">
+                        </div>
+                    </div>
+                `;
+                strategyContainer.append(groupHtml);
+                
+                const groupContainer = $(`#group-${strategyIndex}-${groupIndex}`);
+                
+                grouped[strategyId][groupId].forEach(function(tag) {
+                    // 标签ID是 Store 的 key，不在 value 内容里，
+                    // kam_client 的 search() 统一补成 "_key" 字段返回
+                    // （见 store_client/_http.py 说明）。
+                    const tagCard = `
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <div class="card card-body">
+                                <h6 class="card-title">${escapeHtml(tag.tag_name)}</h6>
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        ID: ${escapeHtml(tag._key)}
+                                    </small>
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                    groupContainer.append(tagCard);
+                });
+            });
+        });
+        
+        // 添加原始JSON数据展示
+        const jsonCard = `
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="mb-0">原始JSON数据</h6>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-3 rounded"><code>${escapeHtml(JSON.stringify(tags, null, 2))}</code></pre>
+                </div>
+            </div>
+        `;
+        container.append(jsonCard);
+    }
+    
+    // 显示提示信息
+    function showAlert(message, type) {
+        const safeType = safeAlertType(type);
+        const alert = `
+            <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alert);
+    }
+
+    // 新增标签
+    $('#confirmAddTag').click(function() {
+        const payload = {
+            tag_id: $('#tagId').val(),
+            tag_name: $('#tagName').val(),
+            group_id: $('#tagGroupId').val(),
+            group_name: $('#tagGroupName').val(),
+            strategy_id: parseInt($('#tagStrategyId').val(), 10),
+            deleted: false
+        };
+
+        if (!payload.tag_id || !payload.tag_name || !payload.group_id || !payload.group_name) {
+            showAlert('请填写完整信息', 'warning');
+            return;
+        }
+
+        $.ajax({
+            url: '/api/tags',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function(response) {
+                if (response.success) {
+                    $('#addTagModal').modal('hide');
+                    $('#addTagForm')[0].reset();
+                    showAlert('标签保存成功', 'success');
+                    loadTags();
+                } else {
+                    showAlert('保存失败: ' + response.error, 'danger');
+                }
+            },
+            error: function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            }
+        });
+    });
+
+    // 初始加载
+    loadTags();
+});
+</script>
+{% endblock %} 

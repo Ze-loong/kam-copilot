@@ -1,0 +1,89 @@
+<svg viewBox="0 0 900 620" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet">
+<title>KAM Copilot — 系统架构依赖图</title>
+<desc>四组件依赖关系：kam_sidebar通过HTTP/SSE调用kam_agent；kam_admin通过kam_client包调用kam_agent的Store接口；kam_agent是唯一直连PostgreSQL和Redis的组件</desc>
+
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+  </marker>
+  <marker id="arrowImport" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+  </marker>
+</defs>
+
+<style>
+  .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 10; }
+  .boxAgent { fill: #eef2ff; stroke: #6366f1; stroke-width: 2; rx: 10; }
+  .boxDb { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 4 3; rx: 10; }
+  .title { font: 600 15px "Segoe UI", sans-serif; fill: #0f172a; }
+  .sub { font: 400 12px "Segoe UI", sans-serif; fill: #64748b; }
+  .tag { font: 600 11px "Segoe UI", sans-serif; fill: #6366f1; }
+  .label { font: 400 11px "Segoe UI", sans-serif; fill: #64748b; }
+  .external { font: 500 13px "Segoe UI", sans-serif; fill: #475569; }
+</style>
+
+<!-- 企业微信 外部 -->
+<rect x="370" y="20" width="160" height="50" class="box"/>
+<text x="450" y="42" text-anchor="middle" class="external">企业微信</text>
+<text x="450" y="59" text-anchor="middle" class="sub">（外部系统）</text>
+
+<line x1="450" y1="70" x2="450" y2="108" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- kam_sidebar -->
+<rect x="350" y="110" width="200" height="64" class="box"/>
+<text x="450" y="135" text-anchor="middle" class="title">kam_sidebar</text>
+<text x="450" y="153" text-anchor="middle" class="sub">FastAPI · 无状态展示层</text>
+<text x="450" y="168" text-anchor="middle" class="sub">不持久化业务数据</text>
+
+<line x1="450" y1="174" x2="450" y2="228" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="465" y="200" class="label">HTTP 发起任务</text>
+<text x="465" y="214" class="label">SSE 接收流式结果</text>
+
+<!-- kam_admin -->
+<rect x="60" y="230" width="220" height="64" class="box"/>
+<text x="170" y="255" text-anchor="middle" class="title">kam_admin</text>
+<text x="170" y="273" text-anchor="middle" class="sub">Flask · 服务端渲染管理后台</text>
+<text x="170" y="288" text-anchor="middle" class="sub">不直连数据库</text>
+
+<!-- kam_agent -->
+<rect x="340" y="230" width="220" height="64" class="boxAgent"/>
+<text x="450" y="255" text-anchor="middle" class="title">kam_agent</text>
+<text x="450" y="273" text-anchor="middle" class="sub">LangGraph · 核心AI引擎</text>
+<text x="450" y="288" text-anchor="middle" class="tag">唯一 Store 连接方</text>
+
+<!-- kam_admin -> kam_agent -->
+<line x1="280" y1="262" x2="336" y2="262" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="308" y="252" text-anchor="middle" class="label">HTTP</text>
+
+<!-- kam_admin -> kam_client -->
+<line x1="170" y1="294" x2="170" y2="330" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowImport)"/>
+<text x="188" y="316" class="label">import</text>
+
+<!-- kam_client -->
+<rect x="60" y="332" width="220" height="60" class="box"/>
+<text x="170" y="357" text-anchor="middle" class="title">kam_client</text>
+<text x="170" y="374" text-anchor="middle" class="sub">共享Python包 · 仅kam_admin引用</text>
+<text x="170" y="388" text-anchor="middle" class="sub">封装 Store get/put/search</text>
+
+<!-- PostgreSQL / Redis -->
+<rect x="340" y="360" width="100" height="56" class="boxDb"/>
+<text x="390" y="384" text-anchor="middle" class="sub" font-weight="600">PostgreSQL</text>
+<text x="390" y="400" text-anchor="middle" class="label">画像/员工/订单等</text>
+
+<rect x="460" y="360" width="100" height="56" class="boxDb"/>
+<text x="510" y="384" text-anchor="middle" class="sub" font-weight="600">Redis</text>
+<text x="510" y="400" text-anchor="middle" class="label">JWT/SSE会话</text>
+
+<line x1="420" y1="294" x2="390" y2="356" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="480" y1="294" x2="510" y2="356" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- 关键约束说明框 -->
+<rect x="60" y="450" width="780" height="150" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" rx="8"/>
+<text x="80" y="478" class="tag" font-size="13">关键约束</text>
+<text x="80" y="500" class="sub">· kam_admin、kam_sidebar 均不直连 PostgreSQL / Redis，也不直接调用大模型</text>
+<text x="80" y="519" class="sub">　大模型调用只发生在 kam_agent 内部</text>
+<text x="80" y="541" class="sub">· kam_admin 通过 kam_client 封装的 Store 接口转手读写；kam_sidebar 场景单一，</text>
+<text x="80" y="560" class="sub">　直接走 kam_agent 的任务型接口（/tasks/generate_profile、/tasks/stream、/tasks/confirm）</text>
+<text x="80" y="582" class="sub">· 3个独立部署服务（agent/admin/sidebar）+ 1个共享代码包（client），非标准微服务</text>
+
+</svg>

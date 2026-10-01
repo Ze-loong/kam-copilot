@@ -1,0 +1,17 @@
+[project]
+name = "kam-sidebar"
+version = "0.1.0"
+description = "KAM Copilot —— kam_sidebar 企微侧边栏（FastAPI，SSE转发+画像逐字段确认交互）"
+requires-python = "==3.12.*"
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "httpx==0.28.1",
+    "itsdangerous==2.2.0",
+    "python-dotenv==1.2.1",
+    "python-multipart>=0.0.20",
+]
+
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true

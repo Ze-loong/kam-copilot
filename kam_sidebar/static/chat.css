@@ -1,0 +1,331 @@
+/* ============================================================
+   "沟通记录"tab 专属样式（原 chat.html 独立页面的 chat.css）。
+    并入 index.html 后做了两处清理：
+   1. 顶栏（.app-header/.brand/.header-actions）已删除——现在跟其余
+      4个tab共用 index.html 的 .topbar，不再需要自己的一份。
+   2. 原来这里有一套独立的颜色变量（--navy/--blue/--teal/--ink/...），
+      跟 styles.css 的设计令牌（--color-primary/--color-text/...）实际
+      指向几乎同一套配色（很多是完全相同的hex值），只是命名不同——现在
+      统一改用 styles.css 里已声明的变量，不再自己重复定义一套。
+   ============================================================ */
+
+button, a { font: inherit; }
+
+/* ---------------- 三栏布局 ---------------- */
+.workspace {
+  /* 原来是 height:calc(100vh - 70px)，假设上方只有一个70px高的独立顶栏。
+     并入tab后上方还有共用顶栏+页面简介+tab栏，高度不再是固定值，改用
+     min-height 而不是精确算高度——3列内部（.message-list）仍然靠这个
+     高度撑开 overflow:auto 各自滚动，只是不再严格贴满视口。 */
+  min-height: 70vh;
+  display: grid;
+  grid-template-columns: 270px minmax(430px, 1fr) 290px;
+  gap: 1px;
+  background: var(--color-border);
+}
+
+.customer-panel,
+.conversation-panel,
+.profile-panel {
+  background: var(--color-surface);
+  min-height: 0;
+}
+
+.customer-panel,
+.profile-panel {
+  padding: 24px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.panel-title h1,
+.profile-panel h2 {
+  margin: 5px 0 0;
+  font-size: 20px;
+}
+
+.panel-title b {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+/* ---------------- 客户列表 ---------------- */
+.customer-list {
+  margin: 22px -10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.customer-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 12px;
+  padding: 12px 10px;
+  display: flex;
+  gap: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.customer-item:hover { background: var(--color-bg); }
+
+.customer-item.active {
+  background: var(--color-primary-light);
+  box-shadow: inset 3px 0 var(--color-primary);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #dce8f3, #edf5f7);
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.customer-copy { min-width: 0; }
+.customer-copy strong,
+.customer-copy small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.customer-copy small { margin-top: 4px; color: var(--color-text-secondary); font-size: 12px; }
+
+/* has_profile 徽标：客户列表里标出哪些已经生成过画像（） */
+.profile-badge {
+  display: inline-block;
+  margin-left: 5px;
+  color: var(--color-success);
+  font-weight: 800;
+}
+
+/* ---------------- 对话面板 ---------------- */
+.conversation-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.conversation-header {
+  padding: 22px 26px 18px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.conversation-header h2 { margin: 4px 0; font-size: 21px; }
+.conversation-header p { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+
+.channel-switch {
+  display: flex;
+  align-self: center;
+  padding: 4px;
+  background: var(--color-neutral-bg);
+  border-radius: 10px;
+}
+
+.channel-btn {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.channel-btn.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+.message-list {
+  overflow: auto;
+  padding: 26px;
+  background: linear-gradient(180deg, var(--color-surface), var(--color-bg));
+}
+
+.message-row { display: flex; margin-bottom: 18px; }
+.message-row.advisor { justify-content: flex-end; }
+.message-wrap { max-width: 72%; }
+.message-meta { margin: 0 7px 5px; color: var(--color-text-muted); font-size: 11px; }
+.advisor .message-meta { text-align: right; }
+
+.bubble {
+  padding: 11px 14px;
+  border-radius: 6px 17px 17px 17px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-xs);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.advisor .bubble {
+  border: 0;
+  border-radius: 17px 6px 17px 17px;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.suggestion-zone {
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.suggestion-zone > button {
+  width: 100%;
+  border: 0;
+  border-radius: 11px;
+  padding: 13px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.suggestion-zone > button:disabled { opacity: .45; cursor: not-allowed; }
+
+.suggestion-card {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #bad8dd;
+  border-left: 4px solid var(--color-accent);
+  border-radius: 11px;
+  background: var(--color-info-bg);
+}
+
+.suggestion-label { color: var(--color-accent); font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.suggestion-text { margin: 8px 0; color: var(--color-text); font-size: 15px; line-height: 1.65; }
+.reasoning {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* ---------------- 客户信息面板 ---------------- */
+.profile-panel h2 { margin-bottom: 22px; }
+.profile-card { text-align: center; }
+
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d7e5f2, #e3f2f1);
+  color: var(--color-primary);
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.profile-card h3 { margin: 0; }
+.profile-card > p { margin: 5px 0 18px; color: var(--color-text-secondary); font-size: 13px; }
+
+/* 画像生成状态（）：跟客户标签一样，不是所有mock客户都
+   预生成了画像，这里显式标出来，不用先点进"客户画像"tab才知道有没有 */
+.profile-status {
+  display: inline-block;
+  margin-bottom: 14px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.profile-status.yes {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-color: rgba(5, 150, 105, 0.2);
+}
+.profile-status.no {
+  background: var(--color-neutral-bg);
+  color: var(--color-text-muted);
+  border-color: var(--color-border-strong);
+}
+
+.info-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  font-size: 13px;
+}
+.info-row span { color: var(--color-text-secondary); }
+
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tag {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 11px;
+}
+
+.semantic-note {
+  margin-top: 26px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--color-warning-bg);
+  border: 1px solid #f1dfb7;
+  color: #765b22;
+}
+.semantic-note strong { font-size: 13px; }
+.semantic-note p { margin: 6px 0 0; font-size: 12px; line-height: 1.55; }
+
+/* ---------------- 空状态/错误态 ---------------- */
+.empty-state,
+.state-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+.empty-state.compact { height: auto; padding: 30px 0; }
+.empty-state span { font-size: 12px; }
+.state-card { padding: 24px 8px; font-size: 13px; }
+.error { color: var(--color-danger); }
+
+/* ---------------- 响应式：面板越窄，越往单栏收 ---------------- */
+@media (max-width: 1050px) {
+  .workspace { grid-template-columns: 240px 1fr; }
+  .profile-panel { display: none; }
+}
+
+@media (max-width: 720px) {
+  .workspace {
+    min-height: auto;
+    grid-template-columns: 1fr;
+  }
+  .customer-panel { max-height: 300px; overflow: auto; }
+  .conversation-panel { min-height: 520px; }
+  .conversation-header { flex-direction: column; }
+  .profile-panel { display: none; }
+}

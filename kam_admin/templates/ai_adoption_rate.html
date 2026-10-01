@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}AI采纳率统计 - 恒创智能装备管理台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-secondary">
+            <i class="fas fa-info-circle"></i>
+            目前可统计画像字段的采纳率。回复建议和标签推荐已有功能，但尚未记录采纳结果；日程提醒尚未实现。
+        </div>
+    </div>
+</div>
+
+<div class="row" id="adoptionCards">
+    <div class="col-12 text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    const MODULE_LABEL_MAP = {
+        profile: { label: 'AI客户画像', icon: 'fa-user-circle' },
+        reply_suggestion: { label: '智能回复建议', icon: 'fa-comments' },
+        tag_suggestion: { label: '智能标签推荐', icon: 'fa-tags' },
+        schedule_reminder: { label: '智能日程提醒', icon: 'fa-calendar-check' }
+    };
+
+    function loadAdoptionRate() {
+        $.get('/api/ai_adoption_rate')
+            .done(function(response) {
+                if (response.success) {
+                    renderCards(response.data);
+                } else {
+                    showAlert('加载AI采纳率数据失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function() {
+                showAlert('网络错误，请稍后重试', 'danger');
+            });
+    }
+
+    function renderCards(data) {
+        const container = $('#adoptionCards');
+        container.empty();
+
+        Object.keys(MODULE_LABEL_MAP).forEach(function(key) {
+            const meta = MODULE_LABEL_MAP[key];
+            const moduleData = data[key];
+            container.append(buildCard(meta, moduleData));
+        });
+    }
+
+    function buildCard(meta, moduleData) {
+        if (!moduleData || !moduleData.implemented) {
+            const reason = (moduleData && moduleData.reason) || '暂不统计';
+            const statusLabel = meta.label === '智能日程提醒' ? '尚未实现' : '暂不统计';
+            return `
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card h-100 text-center" style="opacity: 0.6;">
+                        <div class="card-body">
+                            <i class="fas ${meta.icon} fa-2x text-muted mb-2"></i>
+                            <h6>${meta.label}</h6>
+                            <span class="badge bg-secondary">${statusLabel}</span>
+                            <div class="text-muted small mt-2">${escapeHtml(reason)}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        const rate = moduleData.adoption_rate;
+        const rateText = (rate === null || rate === undefined) ? '暂无数据' : (rate * 100).toFixed(1) + '%';
+
+        return `
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="card h-100 text-center">
+                    <div class="card-body">
+                        <i class="fas ${meta.icon} fa-2x text-primary mb-2"></i>
+                        <h6>${meta.label}</h6>
+                        <h3 class="mb-1">${escapeHtml(rateText)}</h3>
+                        <div class="text-muted small">
+                            采纳 ${escapeHtml(moduleData.confirmed)} / 拒绝 ${escapeHtml(moduleData.discarded)}
+                        </div>
+                        <div class="text-muted small">
+                            待处理 ${escapeHtml(moduleData.pending)} 条（草稿/待核实/待重新生成，不计入采纳率）
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function showAlert(message, type) {
+        const safeType = safeAlertType(type);
+        const alert = `
+            <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alert);
+    }
+
+    loadAdoptionRate();
+});
+</script>
+{% endblock %}

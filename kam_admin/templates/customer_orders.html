@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}客户订单列表 - 恒创智能装备管理台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-shopping-cart"></i> 客户订单列表
+                    <small class="text-muted">（Union ID: {{ union_id }}）</small>
+                </h5>
+                <a href="javascript:history.back()" class="btn btn-back">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>订单ID</th>
+                                <th>下单时间</th>
+                                <th>商品名称</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orderTableBody">
+                            <tr>
+                                <td colspan="4" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">加载中...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 订单详情模态框 -->
+<div class="modal fade" id="orderDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">订单详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="orderDetailContent">
+                    <!-- 订单详情内容将在这里显示 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    const unionId = '{{ union_id }}';
+    let currentOrders = [];
+    
+    // 加载订单列表。04号文档第五节：越权/不存在统一返回403。
+    function loadOrders() {
+        $.get('/api/orders/' + unionId)
+            .done(function(response) {
+                if (response.success) {
+                    currentOrders = response.data;
+                    renderOrderTable(response.data);
+                } else {
+                    showAlert('加载订单列表失败: ' + response.error, 'danger');
+                }
+            })
+            .fail(function(xhr) {
+                if (xhr.status === 403) {
+                    showAlert('无权限查看该订单，或订单不存在', 'warning');
+                } else {
+                    showAlert('网络错误，请稍后重试', 'danger');
+                }
+            });
+    }
+
+    // 渲染订单表格。
+    //
+    // wxxd_order 命名空间的 value 实际字段只有 order_products/
+    // order_create_time/YYYYMMDD（见 kam_agent 侧 upsert_wxxd_order），
+    // 当前订单数据没有 order_status/order_price/order_raw_info；
+    // 列表只展示已存储的字段。
+    // order_id 是 Store 的 key，通过 kam_client search() 补的 "_key"
+    // 字段拿到（见 store_client/_http.py 说明）。
+    function renderOrderTable(orders) {
+        const tbody = $('#orderTableBody');
+        tbody.empty();
+
+        if (orders.length === 0) {
+            tbody.append('<tr><td colspan="4" class="text-center text-muted">该客户暂无订单数据</td></tr>');
+            return;
+        }
+
+        orders.forEach(function(order) {
+            const orderProductsStr = formatOrderProducts(order.order_products);
+
+            const row = `
+                <tr>
+                    <td><code>${escapeHtml(order._key)}</code></td>
+                    <td>${escapeHtml(order.order_create_time || '-')}</td>
+                    <td>${escapeHtml(orderProductsStr)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-info view-order-btn" data-order-id="${escapeHtml(order._key)}">
+                            <i class="fas fa-eye"></i> 查看详情
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+    }
+
+    $('#orderTableBody').on('click', '.view-order-btn', function() {
+        viewOrderDetail($(this).data('order-id'));
+    });
+
+    // 格式化订单商品（数组转换为带换行的字符串）
+    function formatOrderProducts(products) {
+        if (!products || !Array.isArray(products)) return '-';
+
+        if (products.length === 0) return '-';
+
+        // 将数组元素用<br>连接，形成带换行的字符串
+        return products.join('<br>');
+    }
+
+    // 查看订单详情
+    window.viewOrderDetail = function(orderId) {
+        const order = currentOrders.find(o => o._key === orderId);
+        if (!order) {
+            showAlert('订单信息不存在', 'warning');
+            return;
+        }
+
+        const detailHtml = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>基本信息</h6>
+                    <dl class="row">
+                        <dt class="col-sm-4">订单ID:</dt>
+                        <dd class="col-sm-8"><code>${escapeHtml(order._key)}</code></dd>
+                        <dt class="col-sm-4">商品名称:</dt>
+                        <dd class="col-sm-8">${escapeHtml(formatOrderProducts(order.order_products))}</dd>
+                        <dt class="col-sm-4">下单时间:</dt>
+                        <dd class="col-sm-8">${escapeHtml(order.order_create_time || '-')}</dd>
+                    </dl>
+                </div>
+            </div>
+        `;
+
+        $('#orderDetailContent').html(detailHtml);
+        $('#orderDetailModal').modal('show');
+    };
+
+    // 显示提示信息
+    function showAlert(message, type) {
+        const safeType = safeAlertType(type);
+        const alert = `
+            <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('.container-fluid').prepend(alert);
+    }
+    
+    // 初始加载
+    loadOrders();
+});
+</script>
+{% endblock %} 
